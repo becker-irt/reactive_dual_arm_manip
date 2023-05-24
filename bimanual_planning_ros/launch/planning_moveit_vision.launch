@@ -1,0 +1,19 @@
+<?xml version="1.0" ?>
+<launch>
+  <arg name="use_rviz" default="true" />
+  <arg name="rviz_config" default="$(find bimanual_planning_ros)/config/rviz.rviz" />
+  <arg name="sim" default="false" />
+
+  <node name="$(anon rviz)" pkg="rviz" type="rviz" respawn="false" args="-d $(arg rviz_config)" output="screen" if="$(arg use_rviz)" />
+
+  <include file="$(find bimanual_planning_ros)/launch/planning_node.launch"/>
+
+  <param name="/panda_dual/dual_panda_costp_controller/bimanual_planning/robot_type" value="vrep" if="$(arg sim)"/>
+
+  <group ns="panda_dual/dual_panda_costp_controller">
+    <node pkg="bimanual_planning_ros" type="vision_interface_node" name="vision_interface_node" output="screen" />
+  </group>
+
+  <node pkg="rosbag" type="record" name="rosbag_record" args="record /panda_dual/dual_panda_costp_controller/visualization_marker_array /tf /tf_static /panda_dual/dual_panda_costp_controller/predicted_paths /panda_dual/dual_panda_costp_controller/commanded_path" if="$(arg bag)" />
+
+</launch>

@@ -1,0 +1,74 @@
+<?xml version="1.0" ?>
+<launch>
+  <arg name="robot_left_ip"    default="robot_left"/>
+  <arg name="robot_right_ip"   default="robot_right"/>
+  <arg name="gui"              default="false"/>
+  <arg name="grippers"         default="true"/>
+  <arg name="robot_id"         default="panda_dual" />
+  <arg name="robot_left_id"    default="panda_left" />
+  <arg name="robot_right_id"   default="panda_right" />
+  <arg name="planning_frame"   default="base_link" />
+  <arg name="hw_config_file"   default="$(find bimanual_planning_ros)/config/control_node.yaml" />
+  <arg name="controllers_file" default="$(find bimanual_planning_ros)/config/controllers.yaml" />
+  <arg name="xacro_args"       default="simulation:=false with_hands:=true" />
+  <arg name="robot"            default="$(find blaise_description)/robots/blaise_panda_dual.urdf.xacro"/>
+  <arg name="task_sequence"    default="kobo_test_multi_agent_planner" />
+
+  <!-- Launch Grippers -->
+  <group ns="$(arg robot_id)">
+    <group ns="$(arg robot_left_id)">
+      <include file="$(find franka_gripper)/launch/franka_gripper.launch" >
+        <arg name="robot_ip" value="$(arg robot_left_ip)"/>
+        <arg name="arm_id"   value="$(arg robot_left_id)" />
+      </include>
+    </group>
+
+    <group ns="$(arg robot_right_id)">
+      <include file="$(find franka_gripper)/launch/franka_gripper.launch" >
+        <arg name="robot_ip" value="$(arg robot_right_ip)"/>
+        <arg name="arm_id"   value="$(arg robot_right_id)" />
+      </include>
+    </group>
+  </group>
+
+  <include file="$(find bimanual_planning_ros)/launch/dual_arm_control.launch" >
+    <arg name="robot" value="$(arg robot)"/>
+    <arg name="robot_left_id" value="$(arg robot_left_id)"/>
+    <arg name="robot_right_id" value="$(arg robot_right_id)"/>
+    <arg name="args" value="$(arg xacro_args)" />
+    <arg name="robot_ips" value="{$(arg robot_left_id)/robot_ip: $(arg robot_left_ip), $(arg robot_right_id)/robot_ip: $(arg robot_right_ip)}"/>
+    <arg name="robot_id" value="$(arg robot_id)" />
+    <arg name="hw_config_file" value="$(arg hw_config_file)"/>
+    <arg name="controllers_file" value="$(arg controllers_file)"/>
+    <arg name="controllers_to_start" value="$(arg robot_left_id)_state_controller $(arg robot_right_id)_state_controller"/>
+    <arg name="joint_states_source_list" value="[$(arg robot_left_id)_state_controller/joint_states, $(arg robot_right_id)_state_controller/joint_states, $(arg robot_left_id)/franka_gripper/joint_states, $(arg robot_right_id)/franka_gripper/joint_states]"/>
+  </include>
+
+  <group ns="$(arg robot_id)">
+    <rosparam command="load" file="$(find bimanual_planning_ros)/config/dual_panda_costp_controller.yaml" subst_value="True"/>
+    <param name="dual_panda_costp_controller/planning_frame" value="$(arg planning_frame)" />
+    <node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false" output="screen" args="dual_panda_costp_controller"/>
+    <group ns="dual_panda_costp_controller">
+      <rosparam command="load" file="$(find bimanual_planning_ros)/config/tasks/$(arg task_sequence).yaml" />
+      <param name="experiment_name" value="$(arg task_sequence)" />
+    </group>
+    <group ns="$(arg robot_left_id)">
+      <param name="robot_description" command="xacro  '$(find bimanual_planning_ros)/config/robot_description/panda_arm.urdf.xacro' arm_id:=$(arg robot_left_id) hand:=$(arg grippers)" />
+      <include file="$(find bimanual_planning_ros)/launch/planning_context.launch">
+        <arg name="load_robot_description" value="false" />
+        <arg name="arm_id" value="$(arg robot_left_id)" />
+      </include>
+    </group>
+    <group ns="$(arg robot_right_id)">
+      <param name="robot_description" command="xacro  '$(find bimanual_planning_ros)/config/robot_description/panda_arm.urdf.xacro' arm_id:=$(arg robot_right_id) hand:=$(arg grippers)" />
+      <include file="$(find bimanual_planning_ros)/launch/planning_context.launch">
+        <arg name="load_robot_description" value="false" />
+        <arg name="arm_id" value="$(arg robot_right_id)" />
+      </include>
+    </group>
+  </group>
+
+  <!-- Load rviz -->
+  <node pkg="rviz" type="rviz" name="rviz" args="-d $(find bimanual_planning_ros)/launch/rviz/blaise.rviz" if="$(arg gui)"/>
+
+</launch>
